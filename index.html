@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f6f1e5">
+    <meta name="description" content="Twelve stars. One bottle. Keep it together. A deeply official bottle-cap arcade game.">
+    <title>Uncap Europe — Directorate for Cap Reunification</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <main class="paper" aria-label="Uncap Europe bottle-cap game">
+      <header class="masthead">
+        <div class="office-mark" aria-hidden="true"><svg id="office-stars" viewBox="0 0 100 100"></svg></div>
+        <p class="office-name">Directorate for<br>Cap Reunification</p>
+        <span class="form-number">FORM CR-12</span>
+      </header>
+
+      <section class="heading" aria-labelledby="game-title">
+        <div class="heading-reference"><span>ATTACHMENT DIVISION</span><span>PUBLIC SERVICE ARCADE</span></div>
+        <h1 id="game-title">Uncap Europe</h1>
+        <p>Please return all caps to the designated bottle.</p>
+      </section>
+
+      <section class="scoreboard" aria-label="Run statistics">
+        <div class="score-block"><span class="label">Caps reunited</span><output id="score">000</output></div>
+        <div class="lives-block">
+          <svg id="life-stars" viewBox="0 0 100 100" aria-hidden="true"></svg>
+          <div><span class="label">Stars<br>remaining</span><output id="lives" aria-label="Stars remaining">12/12</output></div>
+        </div>
+        <button id="pause" class="pause-button" disabled>Pause</button>
+      </section>
+
+      <section class="stage" aria-label="Cap processing area">
+        <div class="stage-reference" aria-hidden="true"><span id="stage-label">01 / AWAITING INSTRUCTIONS</span><span id="rate">RATE 1.00×</span></div>
+        <canvas id="game" aria-label="Tilt your phone to move the bottle under falling caps. Desktop players can use keyboard arrow keys."></canvas>
+        <div id="overlay" class="overlay"></div>
+      </section>
+
+      <footer class="controls">
+        <div class="feedback" aria-hidden="true"><div id="stamp" class="stamp" hidden><strong>APPROVED</strong><span>Cap successfully reunited.</span></div></div>
+        <div class="steering-row">
+          <div class="steering-instructions">
+            <svg class="tilt-icon" viewBox="0 0 90 38" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="35" y="2" width="20" height="32" rx="3" transform="rotate(12 45 18)"/><path d="M43 6h6m-6 24h3M28 12c-10 0-17 5-20 12m0-8v8h8m46-12c10 0 17 5 20 12m0-8v8h-8"/></g></svg>
+            <p id="control-hint">Tilt phone to move the bottle</p>
+          </div>
+        </div>
+        <p class="control-status"><span id="status-dot"></span><span id="control-status">CONTROL METHOD PENDING</span></p>
+      </footer>
+      <div class="landscape-notice">Please return to portrait.<br><span>This form is filed vertically.</span></div>
+    </main>
+    <p id="announcer" class="sr-only" role="status" aria-live="polite"></p>
+    <noscript>This game requires JavaScript to process caps. Please enable JavaScript and reload.</noscript>
+  </body>
+</html>
