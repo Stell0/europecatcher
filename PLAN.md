@@ -183,7 +183,9 @@ features, app-store packaging, and PWA/offline support.
   Exit: exported score matches the run; results offer Share only.
 - [x] Move the bottle, unify cap sizes, and add damped counter-rotation.
 - [x] Hide manual buttons and remove dragging and PNG save controls.
-- [ ] Publish and verify GitHub Pages deployment.
+- [x] Publish and verify GitHub Pages deployment.
+  Live at `https://stell0.github.io/europecatcher/`; GitHub Actions checks the
+  rules and publishes `dist/` on pushes to `main`.
 - [ ] Tune on iOS Safari and Android Chrome and document real run/check commands.
   Exit: record tested devices/browsers and remaining limitations honestly.
 
