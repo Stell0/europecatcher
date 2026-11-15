@@ -1,4 +1,4 @@
-import { RULES } from './game.js';
+import { RULES, floorY } from './game.js';
 
 export const INK = '#14294c';
 export const PAPER = '#f6f1e5';
@@ -89,12 +89,19 @@ export function drawGame(ctx, game, caughtAt, now, reducedMotion, angle = 0) {
   const x = game?.bottleX ?? RULES.mouthX;
   const snap = !reducedMotion && now - caughtAt < 220 ? Math.sin((now - caughtAt) / 220 * Math.PI) * 2 : 0;
   ctx.strokeStyle = '#14294c25';ctx.lineWidth = 0.5;
-  ctx.beginPath();ctx.moveTo(x - 60, 478);ctx.lineTo(x + 60, 478);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0, floorY);ctx.lineTo(RULES.width, floorY);ctx.stroke();
   ctx.save();ctx.translate(x, RULES.catchY + snap);ctx.rotate(angle);
   drawBottle(ctx, 0, 0, RULES.bottleWidth, RULES.bottleHeight);
   if (now - caughtAt < 220) drawCap(ctx, 0, -2, RULES.capRadius, 0);
   ctx.restore();
+  for (const cap of game?.missedCaps ?? []) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (RULES.missedCapLifetime - cap.age) / 0.35);
+    ctx.fillStyle = '#14294c15';
+    const shadow = Math.max(0.2, 1 - (floorY - cap.y) / 220);
+    ctx.beginPath();ctx.ellipse(cap.x, floorY + 1, RULES.capRadius * shadow, 2.5 * shadow, 0, 0, Math.PI * 2);ctx.fill();
+    drawCap(ctx, cap.x, cap.y, RULES.capRadius, reducedMotion ? -0.24 : cap.angle);
+    ctx.restore();
+  }
   if (game?.cap) drawCap(ctx, game.cap.x, game.cap.y);
-  ctx.fillStyle = '#14294cb3';ctx.textAlign = 'center';ctx.font = '8px "Courier New", monospace';
-  ctx.fillText('DESIGNATED BOTTLE', x, 494);
 }

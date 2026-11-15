@@ -4,12 +4,14 @@ import { MotionInput } from './motion.js';
 import { createReport } from './report.js';
 import { updateBottleWobble } from './bottle.js';
 import { REPOSITORY_URL, PROJECT_URL } from './project.js';
+import { ScreenWakeLock } from './wake-lock.js';
 
 const $ = selector => document.querySelector(selector);
 const canvas = $('#game');
 const ctx = canvas.getContext('2d');
 const overlay = $('#overlay');
 const motion = new MotionInput();
+const wakeLock = new ScreenWakeLock();
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const coarseLandscape = window.matchMedia('(orientation: landscape) and (pointer: coarse)');
 const keys = new Set();
@@ -49,9 +51,6 @@ function updateStats() {
 
 function setControl(mode) {
   control = mode;
-  $('#control-status').textContent = mode === 'motion' ? 'MOTION CONTROL ACTIVE' : 'KEYBOARD CONTROL ACTIVE';
-  $('#control-hint').textContent = mode === 'motion' ? 'Tilt phone to move the bottle' : 'Use arrow keys to move the bottle';
-  $('#status-dot').classList.add('active');
   if (mode === 'manual') motion.disable();
 }
 
@@ -76,7 +75,7 @@ function ready() {
     <div class="instructions"><span><b>01 / STEER</b>Tilt the bottle.</span><span><b>02 / REUNITE</b>Catch the cap.</span><span><b>03 / RETAIN</b>Protect 12 stars.</span></div>
     <button class="primary" data-action="play">Play</button>
     ${starLink}
-    <p class="small-note">Fictional office. Very real loose caps.</p>`, false);
+    <p class="small-note">Two misses in a row cost an extra star.<br>Fictional office. Very real loose caps.</p>`, false);
 }
 
 async function start() {
@@ -106,8 +105,6 @@ async function start() {
 function motionRequired() {
   view = 'ready';motion.disable();
   $('#pause').disabled = true;
-  $('#control-status').textContent = 'MOTION ACCESS REQUIRED';
-  $('#status-dot').classList.remove('active');
   showPanel(`<p class="eyebrow">CONTROL REGISTRATION INCOMPLETE</p><h2>Motion access required.</h2><p>Allow motion access in your browser settings, then try again. Hold your phone upright while it calibrates.</p><button class="primary" data-action="play">Try again</button>${starLink}`);
 }
 
@@ -121,6 +118,7 @@ function beginCountdown(note = '') {
     return;
   }
   view = 'countdown';countdown = 3;
+  wakeLock.setActive(true);
   $('#pause').disabled = false;
   $('#stage-label').textContent = '01 / PREPARING PROCESSING';
   showPanel(`<p class="eyebrow">PROCESSING COMMENCES IN</p><h2 id="countdown-number" class="countdown-number">3</h2><p>Keep it together.</p>${note ? `<p class="small-note">${note}</p>` : ''}`, false);
@@ -130,6 +128,7 @@ function beginCountdown(note = '') {
 function pause(reason = 'Processing has been suspended.') {
   if (!['playing', 'countdown'].includes(view)) return;
   view = 'paused';game.phase = 'paused';accumulator = 0;
+  wakeLock.setActive(false);
   clearInput();
   $('#pause').disabled = true;
   $('#stage-label').textContent = '01 / PROCESSING SUSPENDED';
@@ -156,10 +155,10 @@ function resume() {
 
 function stamp(outcome, now) {
   const node = $('#stamp');
-  node.classList.toggle('rejected', outcome === 'miss');
-  node.querySelector('strong').textContent = outcome === 'catch' ? 'APPROVED' : 'NON-COMPLIANT';
-  node.querySelector('span').textContent = outcome === 'catch' ? 'Cap successfully reunited.' : 'Attachment unsuccessful.';
-  node.hidden = false;stampUntil = now + 1000;
+  node.classList.toggle('rejected', outcome !== 'catch');
+  node.classList.toggle('fined', outcome === 'fined');
+  node.querySelector('strong').textContent = outcome === 'catch' ? 'APPROVED' : outcome === 'fined' ? 'FINED' : 'NON COMPLIANT';
+  node.hidden = false;stampUntil = now + (outcome === 'fined' ? 1300 : 900);
   if (outcome === 'catch') { caughtAt = now;bottlePose.velocity += 0.25; }
 }
 
@@ -180,15 +179,14 @@ async function prepareReport() {
 
 function finish() {
   view = 'results';clearInput();accumulator = 0;
+  wakeLock.setActive(false);
   motion.disable();
-  $('#control-status').textContent = 'PROCESSING CONCLUDED';
-  $('#status-dot').classList.remove('active');
   $('#pause').disabled = true;$('#stamp').hidden = true;
   $('#stage-label').textContent = '01 / PROCESSING CONCLUDED';
   showPanel(`
     <p class="eyebrow">FINAL INSPECTION REPORT</p><h2 id="panel-title" class="case-stamp">CASE CLOSED</h2>
     <span class="result-score">${game.score}</span><p class="eyebrow">CAPS SUCCESSFULLY REUNITED</p>
-    <p>All twelve stars exhausted.<br>The paperwork remains.</p>
+    <p>${game.missStreak % 2 === 0 ? 'FINED — an extra star was deducted.<br>' : ''}All twelve stars exhausted.<br>The paperwork remains.</p>
     <button class="primary" data-action="play">Play again</button>
     <button class="secondary" data-action="share" disabled>Share</button>
     <p id="report-note" class="report-note" role="status">Preparing your official report…</p>
@@ -200,7 +198,7 @@ function finish() {
 async function shareReport() {
   if (!result) return;
   const button = $('[data-action="share"]');
-  const text = `${game.score} caps processed. Your inspection is next.\nPlay: ${PROJECT_URL}\nProject: ${REPOSITORY_URL}`;
+  const text = `${game.score} caps processed. Your inspection is next.\nPlay: ${PROJECT_URL}`;
   try {
     if (navigator.share && navigator.canShare?.({ files: [result.file] })) {
       button.disabled = true;
@@ -209,7 +207,7 @@ async function shareReport() {
       await navigator.share({ title: 'Uncap Europe', text, url: PROJECT_URL });
     } else if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
-      $('#report-note').textContent = 'Score and project links copied. Share the PNG from a phone that supports image sharing.';
+      $('#report-note').textContent = 'Score and play link copied. Share the PNG from a phone that supports image sharing.';
     } else {
       $('#report-note').textContent = 'Sharing is unavailable in this browser. Open the game on your phone to share your report.';
     }
@@ -249,7 +247,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { clearInput();pause('Your application was placed in the background.'); }
 });
 window.addEventListener('blur', () => { clearInput();pause('Focus has moved to another matter.'); });
-window.addEventListener('pagehide', () => { clearInput();pause('Your processing session was interrupted.'); });
+window.addEventListener('pagehide', () => { clearInput();wakeLock.setActive(false);pause('Your processing session was interrupted.'); });
 function rotated() { clearInput();pause('Orientation changed. Return to portrait and resume to recalibrate.'); }
 window.addEventListener('orientationchange', rotated);
 screen.orientation?.addEventListener('change', rotated);
@@ -272,6 +270,7 @@ function frame(now) {
     if (countNode) countNode.textContent = Math.max(1, Math.ceil(countdown));
     if (countdown <= 0) {
       view = 'playing';game.phase = 'playing';accumulator = 0;overlay.replaceChildren();
+      wakeLock.setActive(true);
       $('#stage-label').textContent = '01 / ACTIVE PROCESSING';
       announce('Processing active. Move the bottle to catch the caps.');
     }
@@ -286,7 +285,7 @@ function frame(now) {
         accumulator -= RULES.step;
         if (outcome) {
           updateStats();stamp(outcome, now);
-          if (outcome === 'miss' && game.lives > 0) announce(`Cap missed. ${game.lives} stars remaining.`);
+          if (outcome !== 'catch' && game.lives > 0) announce(`${outcome === 'fined' ? 'Fined for two consecutive misses. Extra star deducted.' : 'Cap missed.'} ${game.lives} stars remaining.`);
           if (game.phase === 'over') finish();
         }
       }

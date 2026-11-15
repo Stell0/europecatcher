@@ -54,15 +54,22 @@ private preview and are not used for GitHub Pages.
   ground, with a small damped wobble. Rotation pivots at the neck, preserving the
   catch point. Reduced motion retains counter-rotation without the wobble.
 - Falling and attached caps use the same radius.
-- One cap is active at a time. Returning to neutral stops horizontal movement.
+- One scoreable cap is active at a time. Returning to neutral stops horizontal movement.
 - The cap is judged when it crosses the bottle-mouth line. A generous overlap
-  catches it; crossing elsewhere loses one star, exactly once.
-- Fall speed increases smoothly with active playing time toward a bounded limit.
+  catches it; crossing elsewhere loses one star, exactly once. Every second
+  consecutive miss costs an extra star (FINED); a catch resets the streak.
+- Missed caps spin and bounce with gravity and energy loss. Rim clips ricochet
+  outward. These visual caps cannot cause another score or penalty.
+- Fall and bottle speeds increase together, keeping their ratio constant.
+- Screen wake lock keeps the display awake during countdown/play when supported.
+  Pause/game over releases it; browser or battery-policy denial does not block play.
+- The lower instruction strip is gone; the canvas uses that space. Large central
+  stamps contain only APPROVED, NON COMPLIANT, or FINED and never block input.
 - Pause, backgrounding, rotation, and missing motion readings freeze the run.
   Resume uses a fresh countdown; phone motion readings must return before play
   resumes. Portrait is required on phones.
 - Results offer a single Share action, with a locally rendered 1080 × 1080 PNG
-  and links to the game and repository. Where images cannot be shared, share
+  and the playable link only. Where images cannot be shared, share
   text/links or copy them to the clipboard. There is no PNG save/download action.
   Sharing cancellation preserves the result.
 - Sensor readings are used only for controls and never sent to a server. The
@@ -76,16 +83,18 @@ private preview and are not used for GitHub Pages.
 - `src/motion.js`: permission, calibration, gravity-relative roll, stale readings.
 - `src/art.js`: reusable Canvas artwork and exact twelve-star SVG counters.
 - `src/report.js`: score PNG generation, using the same game artwork.
-- `tests/game.test.js`: scoring, twelve misses, crossing collision, paused state,
-  input bounds, reachable spawns, and frame-rate independence.
+- `src/wake-lock.js`: best-effort display wake lock and lifecycle cleanup.
+- `tests/game.test.js`: scoring, fines/streak reset, crossing collision, pause,
+  bounce/cleanup, speed scaling, reachable spawns, and frame-rate independence.
 - `PLAN.md`: design decisions, delivery progress, and acceptance criteria.
 
 ## Verification limits
 
-Eleven Node rule tests cover scoring, moving-bottle crossing collision, pause,
-spawns, frame-rate independence, and damped counter-rotation. Browser checks
-cover a keyboard catch, simulated phone tilt and permission retry, no dragging,
-and a share payload with the PNG, playable link, and repository link.
+Nineteen Node tests cover scoring, fines/streak reset, moving-bottle collision,
+pause, bounces/cleanup, speed scaling, spawns, frame-rate independence, wobble,
+and wake-lock acquisition/release, unsupported APIs, and pending-request races.
+Browser checks cover the full-height playfield, central penalty stamps, bounce
+animation, pause/restart, and a PNG share payload containing only the playable link.
 
 The user reported the original motion-controlled version works on a phone
 (device/browser unspecified). The revised movement and wobble still need real

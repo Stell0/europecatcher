@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RULES, createGame, stepGame, fallSpeed, bottleBounds } from '../src/game.js';
+import { RULES, createGame, stepGame, fallSpeed, bottleSpeed, bottleBounds, floorY } from '../src/game.js';
 import { updateBottleWobble } from '../src/bottle.js';
 
 const fixedRandom = () => 0;
@@ -10,6 +10,7 @@ test('a fresh run resets score, twelve lives, timers and cap', () => {
   assert.equal(game.score, 0);assert.equal(game.lives, 12);assert.equal(game.elapsed, 0);
   assert.equal(game.phase, 'playing');assert.ok(game.cap);assert.equal(game.delay, 0);
   assert.equal(game.bottleX, RULES.mouthX);
+  assert.equal(game.missStreak, 0);assert.deepEqual(game.missedCaps, []);
 });
 
 test('a catch gives one point and cannot resolve twice', () => {
@@ -21,9 +22,13 @@ test('a catch gives one point and cannot resolve twice', () => {
   assert.equal(game.score, 1);
 });
 
-test('exactly twelve misses end the run and freeze the result', () => {
+test('twelve isolated misses end the run and freeze the result', () => {
   const game = createGame(fixedRandom);
   for (let i = 1; i <= 12; i++) {
+    if (i > 1) {
+      game.cap = { x: game.bottleX, y: RULES.catchY };
+      assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'catch');
+    }
     game.cap = { x: 30, y: RULES.catchY };
     assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'miss');
     assert.equal(game.lives, 12 - i);
@@ -31,6 +36,33 @@ test('exactly twelve misses end the run and freeze the result', () => {
   }
   const snapshot = structuredClone(game);
   assert.equal(stepGame(game, 10, 1), null);assert.deepEqual(game, snapshot);
+});
+
+test('each pair of consecutive misses costs three stars in total', () => {
+  const game = createGame(fixedRandom);
+  for (let i = 1; i <= 8; i++) {
+    game.cap = { x: 30, y: RULES.catchY };
+    assert.equal(stepGame(game, RULES.step, 0, fixedRandom), i % 2 ? 'miss' : 'fined');
+    assert.equal(game.lives, 12 - i - Math.floor(i / 2));
+    assert.equal(game.missStreak, i);
+  }
+  assert.equal(game.phase, 'over');
+});
+
+test('a catch resets the fine streak and a fine never makes lives negative', () => {
+  const game = createGame(fixedRandom);
+  game.cap = { x: 30, y: RULES.catchY };
+  stepGame(game, RULES.step, 0, fixedRandom);
+  game.cap = { x: game.bottleX, y: RULES.catchY };
+  stepGame(game, RULES.step, 0, fixedRandom);
+  assert.equal(game.missStreak, 0);
+  game.cap = { x: 30, y: RULES.catchY };
+  assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'miss');
+  assert.equal(game.lives, 10);
+  game.lives = 1;
+  game.cap = { x: 30, y: RULES.catchY };
+  assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'fined');
+  assert.equal(game.lives, 0);assert.equal(game.phase, 'over');
 });
 
 test('a fast cap is judged against the bottle position at the crossing', () => {
@@ -43,7 +75,10 @@ test('a fast cap is judged against the bottle position at the crossing', () => {
 });
 
 test('pause freezes elapsed time, cap, score, and lives', () => {
-  const game = createGame(fixedRandom);game.phase = 'paused';
+  const game = createGame(fixedRandom);
+  game.cap = { x: 30, y: RULES.catchY };
+  stepGame(game, RULES.step, 0, fixedRandom);
+  game.phase = 'paused';
   const snapshot = structuredClone(game);
   stepGame(game, 30, 1);assert.deepEqual(game, snapshot);
 });
@@ -65,6 +100,37 @@ test('speed increases smoothly with active time and has a playable limit', () =>
   const maxTravel = 144;
   const fallTime = RULES.catchY / RULES.maxFallSpeed;
   assert.ok(maxTravel / RULES.steeringSpeed < fallTime);
+  for (const time of [0, 30, 120, 600]) {
+    assert.ok(Math.abs(bottleSpeed(time) / fallSpeed(time) - RULES.steeringSpeed / RULES.initialFallSpeed) < 1e-12);
+  }
+  assert.ok(bottleSpeed(60) > bottleSpeed(30));
+});
+
+test('missed caps fall, bounce with energy loss, and expire without scoring again', () => {
+  const game = createGame(fixedRandom);
+  game.cap = { x: 30, y: RULES.catchY };
+  assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'miss');
+  const cap = game.missedCaps[0];
+  assert.ok(cap.vy > 0);
+  const originalY = cap.y;
+  stepGame(game, RULES.step, 0, fixedRandom);
+  assert.ok(cap.y > originalY);
+  for (let i = 0; i < 120 && cap.bounces === 0; i++) stepGame(game, RULES.step, 0, fixedRandom);
+  assert.equal(cap.bounces, 1);assert.ok(cap.vy < 0);
+  assert.ok(cap.y <= floorY - RULES.capRadius * 0.8);
+  const firstRebound = Math.abs(cap.vy);
+  for (let i = 0; i < 120 && cap.bounces === 1; i++) stepGame(game, RULES.step, 0, fixedRandom);
+  assert.ok(cap.bounces >= 2);assert.ok(Math.abs(cap.vy) < firstRebound);
+  assert.equal(game.lives, 11);assert.equal(game.score, 0);
+  for (let i = 0; i < 160; i++) stepGame(game, RULES.step, 0, fixedRandom);
+  assert.ok(!game.missedCaps.includes(cap));
+});
+
+test('a cap clipping the rim deflects outward and upward', () => {
+  const game = createGame(fixedRandom);
+  game.cap = { x: game.bottleX + 40, y: RULES.catchY };
+  assert.equal(stepGame(game, RULES.step, 0, fixedRandom), 'miss');
+  assert.ok(game.missedCaps[0].vx > 0);assert.ok(game.missedCaps[0].vy < 0);
 });
 
 test('the bottle keeps moving between caps, and new caps stay reachable', () => {

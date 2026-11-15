@@ -2,7 +2,9 @@
 
 Status: the user tested the original game successfully. The revised game moves
 and counter-rotates the bottle, hides manual controls, and shares scores through
-a single Share action. Target hosting is GitHub Pages.
+a single Share action. The playfield now uses the former instruction strip,
+central stamps show outcomes, and consecutive misses can incur extra-star fines.
+Hosting is GitHub Pages.
 
 ## Confirmed concept
 
@@ -19,11 +21,18 @@ Confirmed during brainstorming:
 - No on-screen manual controls or dragging fallback. Desktop keyboard input is
   retained; phones require motion permission and usable readings.
 - The 12 stars are lives, with a separate caught-cap score: one catch = one point.
-- Each miss costs one star. No stars remaining means game over.
-- Speed increases during the run.
+- Each miss costs one star. Every second consecutive miss also deducts an extra
+  star and shows FINED. A catch resets the streak. Zero stars means game over.
+- Fall and bottle steering speed increase together, using the same multiplier.
+- Missed caps animate with gravity, spin, floor bounces, and energy loss. Rim
+  clips deflect outward. Each cap still affects scoring/lives only once.
 - End-of-run PNG sharing is part of the first version.
 - Results show Share only, with no PNG save/download button. Shared posts contain
-  the playable GitHub Pages URL and repository link.
+  the playable GitHub Pages URL only, without the repository link.
+- The former bottom instruction/footer strip is playable canvas space. Large
+  central stamps contain only APPROVED, NON COMPLIANT, or FINED, with no subtitles.
+- Keep the display awake during countdown/play with a best-effort screen wake
+  lock; release on pause/game over and tolerate unsupported/denied requests.
 - Host on GitHub Pages at `https://stell0.github.io/europecatcher/`; add a start
   screen link to star `https://github.com/Stell0/europecatcher`.
 - The personality is cheeky satire about bottle caps.
@@ -53,16 +62,16 @@ Suggested feedback and result copy:
 
 | Event | Notice / stamp |
 | --- | --- |
-| Catch | APPROVED — Cap successfully reunited. |
-| Miss | NON-COMPLIANT — Attachment unsuccessful. |
+| Catch | APPROVED |
+| Miss | NON COMPLIANT |
+| Second consecutive miss | FINED |
 | Difficulty rises | Processing rate increased. |
 | Game over | CASE CLOSED — All stars exhausted. |
 | Result score | Caps reunited: 42 |
 
-These are copy proposals, not extra game mechanics. Use brief stamps in a
-dedicated feedback area; they must not cover falling caps, block controls, or
-delay play. Retain clear action labels such as Play, Pause, Share PNG, and Save
-PNG, with administrative jokes in supporting copy.
+The three gameplay stamps use the exact text above, without supporting copy.
+They briefly overlay the screen center at large size, without intercepting input
+or delaying play. Keep Play, Pause, and Share labels clear.
 
 A star ring in the HUD loses stars in a consistent order, leaving faint empty
 positions so the loss is clear. Pair it with `Stars remaining: 9/12` and keep the
@@ -93,17 +102,21 @@ The generation and correction prompts are saved in
    position. It falls straight down while input moves the bottle beneath it.
 5. **Resolve:** crossing the mouth with enough horizontal overlap catches it,
    adds one point, and plays a short snap-on animation. Passing the catch line
-   outside the mouth counts as a miss and removes one star. Resolve each cap once.
-6. **Repeat faster:** continue until 12 misses have removed all stars.
+   outside the mouth counts as a miss and removes one star. Every second miss
+   in an unbroken streak also removes an extra star and shows FINED. Catches
+   reset the streak. Animate misses with bounces; resolve scoring only once.
+6. **Repeat faster:** continue until all stars are gone; eight unbroken misses
+   end a run, while isolated misses still cost one star each.
 7. **Results:** freeze the final score; show Play again and Share.
 
 Start with one active cap at a time. Input controls bottle velocity: neutral
 hold stops sideways movement, while stronger tilt increases it up to a limit.
-Keep the bottle mouth within the side edges; do not add bouncing or cap collisions.
+Keep the bottle mouth within the side edges. Missed caps bounce visually and
+expire without further scoring; do not add collisions between caps.
 The mouth hitbox should be a little more forgiving than the artwork suggests.
 
-Increase falling speed using active play time, independently of score and frame
-rate. Begin gently, then shorten fall time smoothly toward a tested minimum.
+Increase falling and bottle speed using the same active-time multiplier,
+independently of score and frame rate. Begin gently, then speed up smoothly.
 The speed curve, maximum speed, mouth width, and steering sensitivity are tuning
 decisions. First ensure caps remain reachable at every permitted spawn position.
 Overlapping caps and other difficulty systems can wait until this loop is fun.
@@ -138,7 +151,7 @@ not look like remaining lives after defeat.
 
 Prepare the Blob/File on the results screen before enabling Share. On a button
 tap, check `navigator.canShare({ files })` and call `navigator.share` if supported.
-The payload includes the playable Pages URL and repository URL. Where images
+The payload includes only the playable Pages URL, not the repository URL. Where images
 cannot be shared, share text/links or copy them to the clipboard. Do not expose
 save/download controls. Cancellation leaves the results screen usable. No upload or
 automatic posting is needed. Browser requirements are documented in
@@ -176,13 +189,16 @@ features, app-store packaging, and PWA/offline support.
 - [x] User trial of the original motion-controlled game: reported working.
   Device/browser unspecified; revised bottle motion still needs hardware testing.
 - [x] Complete the game loop with scoring, stars, collision, and increasing speed.
-  Exit: each cap resolves once and the twelfth miss ends the run immediately.
+  Exit: each cap resolves once and losing the final star ends the run immediately.
 - [x] Add responsive art/UI, countdown, pause, recalibration, restart, and feedback.
   Exit: the player understands the controls and can replay without reloading.
-- [x] Generate the result PNG and share it with playable/project links.
+- [x] Generate the result PNG and share it with the playable link only.
   Exit: exported score matches the run; results offer Share only.
 - [x] Move the bottle, unify cap sizes, and add damped counter-rotation.
 - [x] Hide manual buttons and remove dragging and PNG save controls.
+- [x] Expand the playfield, enlarge/center the three exact-text outcome stamps,
+  add paired-miss fines and bouncing caps, and scale bottle/fall speeds together.
+- [x] Add a best-effort screen wake lock for active play and release it on pause/end.
 - [x] Publish and verify GitHub Pages deployment.
   Live at `https://stell0.github.io/europecatcher/`; GitHub Actions checks the
   rules and publishes `dist/` on pushes to `main`.
@@ -192,7 +208,8 @@ features, app-store packaging, and PWA/offline support.
 ## Acceptance checks
 
 - A fresh run has zero points and all 12 stars. A catch adds exactly one point;
-  a miss removes exactly one star. Lives cannot go negative.
+  a miss removes one star, plus one extra on every second consecutive miss.
+  A catch resets the fine streak. Lives cannot go negative.
 - The final miss freezes gameplay immediately. No later event changes the result.
   Replay clears old caps, timers, held input, and result/share state.
 - No double scoring, missed collisions at high speed, duplicate animation loops,
@@ -206,17 +223,16 @@ features, app-store packaging, and PWA/offline support.
   visible controls. Inputs do not accidentally scroll the gameplay area.
 - Buttons have labels/focus states; remaining lives are available as text; reduced
   motion removes decorative shaking/flashing. Do not announce every frame.
-- Stamps and notices support the official-document style without obscuring caps,
-  the bottle mouth, lives, score, or controls.
-- The shared PNG contains the exact final score, with game/project links in the
+- Large centered stamps use exactly APPROVED, NON COMPLIANT, or FINED, with no
+  subtitles; they do not intercept input or delay the game. No lower footer remains.
+- The shared PNG contains the exact final score, with only the playable link in the
   share payload. Unsupported image sharing uses text/link sharing or clipboard;
   cancellation preserves results. No PNG save/download or dragging controls exist.
 
-Eleven deterministic rule checks pass, including moving-bottle crossing collision
-and damped counter-rotation. Browser checks cover a keyboard catch, simulated
-phone tilt and permission retry, absence of dragging/buttons, and a PNG share
-payload containing both canonical links. The original version also had browser
-checks for twelve misses, pause/resume, restart, and sharing cancellation.
+Nineteen deterministic checks cover fines/streak reset, nonnegative lives,
+bounce energy loss/cleanup, speed scaling, collision, and wake-lock lifecycle/races.
+Browser checks cover the full-height playfield, centered fine/miss stamps,
+bouncing caps, pause/restart, and a PNG payload with only the playable URL.
 Use real-device play to verify physical steering direction, sensitivity, OS
 permission prompts, native sharing, and browser safe areas before release.
 

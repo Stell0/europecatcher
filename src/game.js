@@ -4,11 +4,14 @@ export const RULES = Object.freeze({
   bottleWidth: 87, bottleHeight: 164,
   steeringSpeed: 235, initialFallSpeed: 118, maxFallSpeed: 355,
   rampSeconds: 65, respawnDelay: 0.32, step: 1 / 120,
+  gravity: 900, bounceRestitution: 0.44, missedCapLifetime: 2.2,
 });
 
 export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export const fallSpeed = seconds => RULES.initialFallSpeed +
   (RULES.maxFallSpeed - RULES.initialFallSpeed) * (1 - Math.exp(-seconds / RULES.rampSeconds));
+export const bottleSpeed = seconds => RULES.steeringSpeed * fallSpeed(seconds) / RULES.initialFallSpeed;
+export const floorY = RULES.catchY + RULES.bottleHeight + 4;
 
 function spawn(random, bottleX = RULES.mouthX) {
   // Keep caps reachable from the bottle's current position, even at full speed.
@@ -18,7 +21,7 @@ function spawn(random, bottleX = RULES.mouthX) {
 }
 
 export function createGame(random = Math.random) {
-  return { phase: 'playing', score: 0, lives: RULES.lives, elapsed: 0,
+  return { phase: 'playing', score: 0, lives: RULES.lives, elapsed: 0, missStreak: 0, missedCaps: [],
     bottleX: RULES.mouthX, cap: spawn(random), delay: 0 };
 }
 
@@ -26,12 +29,44 @@ export function bottleBounds() {
   return { min: RULES.bottleWidth / 2, max: RULES.width - RULES.bottleWidth / 2 };
 }
 
+function animateMissedCaps(game, dt) {
+  for (const cap of game.missedCaps) {
+    cap.age += dt;
+    cap.x += cap.vx * dt;
+    cap.angle += cap.spin * dt;
+    if (!cap.resting) {
+      cap.y += cap.vy * dt + RULES.gravity * dt * dt / 2;
+      cap.vy += RULES.gravity * dt;
+      const contactY = floorY - RULES.capRadius * 0.8;
+      if (cap.y >= contactY && cap.vy > 0) {
+        cap.y = contactY;
+        cap.vy = -cap.vy * RULES.bounceRestitution;
+        cap.vx *= 0.68;cap.spin *= 0.6;cap.bounces += 1;
+        if (Math.abs(cap.vy) < 40) { cap.vy = 0;cap.resting = true; }
+      }
+    } else {
+      cap.vx *= Math.exp(-8 * dt);cap.spin *= Math.exp(-8 * dt);
+    }
+  }
+  game.missedCaps = game.missedCaps.filter(cap => cap.age < RULES.missedCapLifetime &&
+    cap.x > -RULES.capRadius * 2 && cap.x < RULES.width + RULES.capRadius * 2);
+}
+
+function missAnimation(game, cap, bottleX, speed) {
+  const direction = cap.x < bottleX ? -1 : 1;
+  const rimHit = Math.abs(cap.x - bottleX) <= RULES.mouthWidth / 2 + RULES.capRadius;
+  game.missedCaps.push({ x: cap.x, y: RULES.catchY - RULES.capRadius,
+    vx: direction * (rimHit ? speed * 0.6 : 18), vy: rimHit ? -speed * 0.5 : speed,
+    angle: -0.24, spin: direction * (rimHit ? 7 : 2.8), age: 0, bounces: 0, resting: false });
+}
+
 export function stepGame(game, dt, input, random = Math.random) {
   if (game.phase !== 'playing' || !Number.isFinite(dt) || dt <= 0) return null;
   game.elapsed += dt;
+  animateMissedCaps(game, dt);
   const bounds = bottleBounds();
   const oldBottleX = game.bottleX;
-  const velocityX = clamp(Number.isFinite(input) ? input : 0, -1, 1) * RULES.steeringSpeed;
+  const velocityX = clamp(Number.isFinite(input) ? input : 0, -1, 1) * bottleSpeed(game.elapsed);
   game.bottleX = clamp(game.bottleX + velocityX * dt, bounds.min, bounds.max);
   if (!game.cap) {
     game.delay -= dt;
@@ -47,10 +82,16 @@ export function stepGame(game, dt, input, random = Math.random) {
   const fraction = clamp((RULES.catchY - RULES.capRadius - oldY) / (cap.y - oldY), 0, 1);
   const crossingX = clamp(oldBottleX + velocityX * dt * fraction, bounds.min, bounds.max);
   const caught = Math.abs(cap.x - crossingX) <= RULES.mouthWidth / 2 + RULES.capRadius * 0.5;
-  if (caught) game.score += 1;
-  else game.lives = Math.max(0, game.lives - 1);
+  let outcome = 'catch';
+  if (caught) { game.score += 1;game.missStreak = 0; }
+  else {
+    game.missStreak += 1;
+    outcome = game.missStreak % 2 === 0 ? 'fined' : 'miss';
+    game.lives = Math.max(0, game.lives - (outcome === 'fined' ? 2 : 1));
+    missAnimation(game, cap, crossingX, fallSpeed(game.elapsed));
+  }
   game.cap = null;
   game.delay = RULES.respawnDelay;
   if (game.lives === 0) game.phase = 'over';
-  return caught ? 'catch' : 'miss';
+  return outcome;
 }
